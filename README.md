@@ -1,3 +1,5 @@
+<img src="brand/icon.png" alt="QuickBooks Time" width="96" align="right">
+
 # QuickBooks Time (TSheets) for Home Assistant
 
 Turn any Home Assistant dashboard into an office time clock for **QuickBooks Time** (formerly TSheets):
