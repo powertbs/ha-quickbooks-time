@@ -1,0 +1,7 @@
+# Personal dashboard files - not part of the published integration
+dashboard/
+tools/
+__pycache__/
+*.pyc
+.DS_Store
+*.zip

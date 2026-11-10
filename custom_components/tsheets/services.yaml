@@ -1,0 +1,70 @@
+keypad:
+  name: Keypad press
+  description: Press a key on the kiosk. A full 4-digit PIN shows that employee's screen; clock_in / clock_out then punch them.
+  fields:
+    key:
+      name: Key
+      required: true
+      example: "5"
+      selector:
+        select:
+          options: ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "back", "clear", "enter", "cancel", "clock_in", "clock_out", "open", "wake"]
+
+punch:
+  name: Punch with PIN
+  description: Clock the employee with this PIN in, or out if they're already on the clock.
+  fields:
+    pin:
+      name: PIN
+      required: true
+      example: "1234"
+      selector:
+        text:
+          type: password
+    action:
+      name: Action
+      default: toggle
+      selector:
+        select:
+          options: ["toggle", "in", "out"]
+    jobcode_id:
+      name: Job code ID
+      description: Optional. Overrides the default job when clocking in.
+      selector:
+        number:
+          min: 1
+          max: 999999999
+          mode: box
+
+clock_in:
+  name: Clock in employee
+  description: Clock in an employee by their QuickBooks Time user ID (for automations).
+  fields:
+    user_id:
+      name: User ID
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 999999999
+          mode: box
+    jobcode_id:
+      name: Job code ID
+      selector:
+        number:
+          min: 1
+          max: 999999999
+          mode: box
+
+clock_out:
+  name: Clock out employee
+  description: Clock out an employee by their QuickBooks Time user ID (for automations).
+  fields:
+    user_id:
+      name: User ID
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 999999999
+          mode: box

@@ -1,0 +1,88 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect QuickBooks Time",
+        "description": "Paste an API access token. In QuickBooks Time go to Feature Add-ons → Manage Add-ons → API → Install, then Add a new application and copy its Access Token. The token should belong to an admin so Home Assistant can clock in every employee.",
+        "data": {
+          "access_token": "Access token"
+        }
+      },
+      "reauth_confirm": {
+        "title": "QuickBooks Time token expired",
+        "description": "QuickBooks Time rejected the saved token. Paste a new access token.",
+        "data": {
+          "access_token": "Access token"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "QuickBooks Time rejected that token.",
+      "cannot_connect": "Could not reach QuickBooks Time.",
+      "unknown": "Unexpected error, check the Home Assistant log."
+    },
+    "abort": {
+      "already_configured": "This QuickBooks Time account is already connected.",
+      "reauth_successful": "Token updated."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "QuickBooks Time options",
+        "menu_options": {
+          "api": "API connection (access token)",
+          "pins": "Employee PINs",
+          "photos": "Employee photos",
+          "genders": "Male / female (placeholder pictures)",
+          "settings": "General settings"
+        }
+      },
+      "api": {
+        "title": "API connection",
+        "description": "Connected to **{account}** with the token ending in **{token_end}**.\n\nTo change it, paste a new access token below. Create one in QuickBooks Time: Feature Add-ons → Manage Add-ons → API → Add a new application, then copy its Access Token. It must belong to an admin of the same company.",
+        "data": {
+          "access_token": "New access token"
+        }
+      },
+      "photos": {
+        "title": "Employee photos",
+        "description": "Pick an employee and upload the photo shown on the kiosk after they type their PIN. Without one, their QuickBooks Time profile picture is used. Square photos look best.",
+        "data": {
+          "employee": "Employee",
+          "photo": "Photo (JPG, PNG or WebP)",
+          "remove": "Remove this employee's uploaded photo"
+        }
+      },
+      "genders": {
+        "title": "Male / female",
+        "description": "Used for the placeholder picture on the dashboard when an employee has no photo."
+      },
+      "pins": {
+        "title": "Employee PINs",
+        "description": "Give each office employee a unique 4-digit PIN for the dashboard keypad. Leave blank for anyone who shouldn't use the keypad."
+      },
+      "settings": {
+        "title": "General settings",
+        "data": {
+          "default_jobcode_id": "Job/customer for keypad clock-ins",
+          "scan_interval": "Refresh every",
+          "gps_max_age": "Hide GPS locations older than"
+        }
+      }
+    },
+    "error": {
+      "pin_invalid": "PINs must be exactly 4 digits: {names}",
+      "pin_duplicate": "Each PIN must be unique: {names}",
+      "no_photo": "Choose a photo to upload, or tick Remove.",
+      "bad_image": "Use a JPG, PNG or WebP image.",
+      "invalid_auth": "QuickBooks Time rejected that token.",
+      "cannot_connect": "Could not reach QuickBooks Time.",
+      "unknown": "Unexpected error, check the Home Assistant log.",
+      "wrong_account": "That token belongs to a different QuickBooks Time company. Add that company as a new integration instead."
+    },
+    "abort": {
+      "not_loaded": "The integration isn't loaded. Fix the connection first."
+    }
+  }
+}
