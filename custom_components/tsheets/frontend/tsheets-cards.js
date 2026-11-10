@@ -5,7 +5,7 @@
  *   type: custom:tsheets-time-clock-card   PIN keypad time clock (pop-up, or inline on a tablet)
  *   type: custom:tsheets-whos-in-card      who's on the clock right now
  */
-const CARDS_VERSION = "0.0.1";
+const CARDS_VERSION = "0.0.2";
 
 const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);

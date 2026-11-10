@@ -10,7 +10,7 @@ API_BASE = "https://rest.tsheets.com/api/v1"
 
 # Dashboard cards shipped with the integration (frontend/tsheets-cards.js).
 CARDS_URL = f"/{DOMAIN}_static/tsheets-cards.js"
-CARDS_VERSION = "0.0.1"  # bump with the JS so browsers fetch the new file
+CARDS_VERSION = "0.0.2"  # bump with the JS so browsers fetch the new file
 
 # Options
 CONF_PINS = "pins"  # {str(user_id): "1234"}
