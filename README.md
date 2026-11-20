@@ -60,7 +60,7 @@ On the integration, click **Configure**:
 | **Employee PINs** | Give each employee a 4-digit PIN for the time clock. Leave it blank for anyone who shouldn't use it. Duplicate PINs are rejected. |
 | **Employee photos** | Upload a JPG/PNG/WebP photo per employee. Without one, their QuickBooks Time profile picture is used. |
 | **Male / female** | Picks the placeholder picture (blue / pink) on the Who's In card for employees without a photo. |
-| **General settings** | **Job for time-clock clock-ins:** by default a customer/job named **Office** if you have one, otherwise no job. You can pick any job here. Also sets how often to refresh (default 60 s) and how old a GPS point can be (default 120 min). |
+| **General settings** | **Job for time-clock clock-ins:** by default a customer/job named **Office** if you have one, otherwise no job. You can pick any job here. Also sets how often to refresh (default 60 s) how old a GPS point can be (default 120 min), and which day the work week starts on for the hours sensors (default: same as QuickBooks Time). |
 
 > QuickBooks Time's API doesn't share the PINs set in QuickBooks Time itself, or employees' gender, so those are set here.
 
@@ -109,10 +109,12 @@ show_time: true
 | `sensor.tsheets_clocked_in` | How many people are on the clock. The `employees` attribute lists name, picture, gender, job, customer, shift start (`since`), and first clock-in today (`first_in`) |
 | `sensor.tsheets_kiosk` | Time clock screen (`idle`, `typing`, `checking`, `employee`, `working`, `result`, `error`) and the employee on screen |
 | `sensor.tsheets_keypad_display` | Keypad text: `Enter your PIN`, `●●●`, `✖ PIN not recognized` |
+| `sensor.tsheets_hours_this_week` / `sensor.tsheets_hours_last_week` | Hours everyone worked together. The `employees` attribute lists each person's hours, highest first |
 | `sensor.tsheets_last_punch` | The last clock in/out done from Home Assistant |
 | `button.tsheets_clock_in` / `button.tsheets_clock_out` | The employee-screen buttons |
 | `binary_sensor.<name>_on_the_clock` | On/off per employee, with job and customer |
 | `sensor.<name>_current_job` | `Customer › Job`, or `Off the clock` |
+| `sensor.<name>_hours_this_week` / `sensor.<name>_hours_last_week` | Hours worked (decimal, e.g. `38.25`). A shift that's still open counts live. Attributes: `formatted` (`38h 15m`), `week_start`, `week_end`, and `days` (hours per day) |
 | `device_tracker.<name>_location` | Latest GPS point from the QuickBooks Time mobile app (shown on the **Map**) |
 
 ## Services

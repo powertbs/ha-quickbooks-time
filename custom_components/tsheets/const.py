@@ -18,17 +18,24 @@ CONF_DEFAULT_JOBCODE = "default_jobcode_id"
 CONF_SCAN_INTERVAL = "scan_interval"
 CONF_GPS_MAX_AGE = "gps_max_age"
 CONF_GENDERS = "genders"  # {str(user_id): "male" | "female"} for the placeholder avatar
+CONF_WEEK_START = "week_start"  # -1 = from QuickBooks Time, else 0 = Monday ... 6 = Sunday
 
 # Keypad clock-ins go to the customer/job with this name unless another is picked in settings.
 DEFAULT_JOB_NAME = "Office"
 
 DEFAULT_SCAN_INTERVAL = 60  # seconds
 DEFAULT_GPS_MAX_AGE = 120  # minutes
+WEEK_START_AUTO = -1
+DEFAULT_WEEK_START = WEEK_START_AUTO
+FALLBACK_WEEK_START = 6  # Sunday, if QuickBooks Time doesn't say
 
 # How often to re-download the employee list and job/customer list.
 DIRECTORY_REFRESH = timedelta(hours=1)
 # How far back to look for timesheets that are still on the clock.
 ACTIVE_LOOKBACK_DAYS = 31
+# How often to re-download this week's and last week's finished timesheets for the
+# hours sensors (time on a shift that is still open is added live on every refresh).
+HOURS_REFRESH = timedelta(minutes=5)
 
 # Keypad behaviour
 PIN_LENGTH = 4

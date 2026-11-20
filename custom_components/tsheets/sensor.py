@@ -1,10 +1,18 @@
 """Sensors: current job per employee, plus hub sensors for the office dashboard."""
 from __future__ import annotations
 
-from homeassistant.components.sensor import SensorEntity, SensorStateClass
+from datetime import date, timedelta
+
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
+from homeassistant.const import UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from .const import CONF_GENDERS
 from .coordinator import TSheetsCoordinator
@@ -25,9 +33,136 @@ async def async_setup_entry(
             KeypadDisplaySensor(rt.punch_clock, entry),
             KioskSensor(rt.punch_clock, entry),
             LastPunchSensor(rt.punch_clock, entry),
+            TotalHoursSensor(rt.coordinator, entry, last_week=False),
+            TotalHoursSensor(rt.coordinator, entry, last_week=True),
         ]
     )
-    add_employee_entities(entry, async_add_entities, lambda c, uid: [CurrentJobSensor(c, uid)])
+    add_employee_entities(
+        entry,
+        async_add_entities,
+        lambda c, uid: [
+            CurrentJobSensor(c, uid),
+            HoursSensor(c, uid, last_week=False),
+            HoursSensor(c, uid, last_week=True),
+        ],
+    )
+
+
+def _hhmm(seconds: int) -> str:
+    minutes = round(seconds / 60)
+    return f"{minutes // 60}h {minutes % 60:02d}m"
+
+
+def _hours(seconds: int) -> float:
+    return round(seconds / 3600, 2)
+
+
+def _week_start(coordinator: TSheetsCoordinator, last_week: bool) -> date:
+    start = coordinator.this_week_start()
+    return start - timedelta(days=7) if last_week else start
+
+
+class _HoursMixin:
+    """Shared setup for the weekly hours sensors."""
+
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.HOURS
+    _attr_suggested_display_precision = 2
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def _setup(self, last_week: bool) -> None:
+        self.last_week = last_week
+        self._attr_name = "Hours last week" if last_week else "Hours this week"
+        self._attr_icon = "mdi:calendar-clock" if last_week else "mdi:clock-time-four-outline"
+
+
+class HoursSensor(_HoursMixin, TSheetsEmployeeEntity, SensorEntity):
+    """Hours one employee worked this week / last week (open shift counted live)."""
+
+    def __init__(self, coordinator: TSheetsCoordinator, user_id: int, last_week: bool) -> None:
+        super().__init__(
+            coordinator, user_id, "hours_last_week" if last_week else "hours_this_week"
+        )
+        self._setup(last_week)
+
+    def _worked(self) -> tuple[int, dict[date, int]]:
+        return self.coordinator.data.worked_seconds(
+            self.user_id, _week_start(self.coordinator, self.last_week), dt_util.utcnow()
+        )
+
+    @property
+    def native_value(self) -> float:
+        return _hours(self._worked()[0])
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        total, days = self._worked()
+        start = _week_start(self.coordinator, self.last_week)
+        return {
+            "user_id": self.user_id,
+            "formatted": _hhmm(total),
+            "week_start": start.isoformat(),
+            "week_end": (start + timedelta(days=6)).isoformat(),
+            "on_the_clock": self.shift is not None,
+            "days": {
+                (start + timedelta(days=i)).strftime("%a %m/%d"): _hours(
+                    days.get(start + timedelta(days=i), 0)
+                )
+                for i in range(7)
+            },
+        }
+
+
+class TotalHoursSensor(_HoursMixin, CoordinatorEntity[TSheetsCoordinator], SensorEntity):
+    """Hours everyone worked together this week / last week."""
+
+    _attr_has_entity_name = True
+
+    def __init__(
+        self, coordinator: TSheetsCoordinator, entry: TSheetsConfigEntry, last_week: bool
+    ) -> None:
+        super().__init__(coordinator)
+        key = "hours_last_week" if last_week else "hours_this_week"
+        self._attr_unique_id = f"{entry.entry_id}_{key}"
+        self._attr_device_info = hub_device(entry)
+        self._setup(last_week)
+
+    def _per_employee(self) -> list[tuple[int, int]]:
+        data = self.coordinator.data
+        start = _week_start(self.coordinator, self.last_week)
+        now = dt_util.utcnow()
+        out = []
+        for uid in data.users:
+            secs, _ = data.worked_seconds(uid, start, now)
+            if secs > 0:
+                out.append((uid, secs))
+        return sorted(out, key=lambda item: -item[1])
+
+    @property
+    def native_value(self) -> float:
+        return _hours(sum(secs for _, secs in self._per_employee()))
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        data = self.coordinator.data
+        start = _week_start(self.coordinator, self.last_week)
+        rows = self._per_employee()
+        total = sum(secs for _, secs in rows)
+        return {
+            "formatted": _hhmm(total),
+            "week_start": start.isoformat(),
+            "week_end": (start + timedelta(days=6)).isoformat(),
+            "people": len(rows),
+            "employees": [
+                {
+                    "user_id": uid,
+                    "name": data.users[uid].name,
+                    "hours": _hours(secs),
+                    "formatted": _hhmm(secs),
+                }
+                for uid, secs in rows
+            ],
+        }
 
 
 class CurrentJobSensor(TSheetsEmployeeEntity, SensorEntity):

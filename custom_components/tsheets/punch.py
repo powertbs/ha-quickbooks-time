@@ -419,6 +419,7 @@ class PunchClock:
         self.last_punch = result
         self.hass.bus.async_fire(EVENT_PUNCH, result)
         self._notify()
+        self.coordinator.invalidate_hours()
         await self.coordinator.async_request_refresh()
         return result
 

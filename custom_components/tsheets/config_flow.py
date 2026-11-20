@@ -42,9 +42,12 @@ from .const import (
     CONF_GPS_MAX_AGE,
     CONF_PINS,
     CONF_SCAN_INTERVAL,
+    CONF_WEEK_START,
     DEFAULT_GPS_MAX_AGE,
     DEFAULT_JOB_NAME,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_WEEK_START,
+    WEEK_START_AUTO,
     DOMAIN,
     PIN_LENGTH,
 )
@@ -267,6 +270,7 @@ class TSheetsOptionsFlow(OptionsFlow):
                     CONF_DEFAULT_JOBCODE: int(user_input[CONF_DEFAULT_JOBCODE]),
                     CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
                     CONF_GPS_MAX_AGE: int(user_input[CONF_GPS_MAX_AGE]),
+                    CONF_WEEK_START: int(user_input[CONF_WEEK_START]),
                 }
             )
 
@@ -298,6 +302,27 @@ class TSheetsOptionsFlow(OptionsFlow):
                     NumberSelectorConfig(
                         min=5, max=1440, step=5, unit_of_measurement="min",
                         mode=NumberSelectorMode.BOX,
+                    )
+                ),
+                vol.Required(
+                    CONF_WEEK_START,
+                    default=str(opts.get(CONF_WEEK_START, DEFAULT_WEEK_START)),
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=[
+                            SelectOptionDict(
+                                value=str(WEEK_START_AUTO),
+                                label="Same as QuickBooks Time (recommended)",
+                            )
+                        ]
+                        + [
+                            SelectOptionDict(value=str(i), label=day)
+                            for i, day in enumerate(
+                                ["Monday", "Tuesday", "Wednesday", "Thursday",
+                                 "Friday", "Saturday", "Sunday"]
+                            )
+                        ],
+                        mode=SelectSelectorMode.DROPDOWN,
                     )
                 ),
             }

@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.util import dt as dt_util
 
 if TYPE_CHECKING:
     from .api import TSheetsApi
@@ -44,12 +45,54 @@ class GeoPoint:
 
 
 @dataclass
+class WeekHours:
+    """Finished (closed) timesheet seconds, per user and per day, for two weeks."""
+
+    this_week_start: date
+    # {user_id: {date: seconds}} - only timesheets that are no longer on the clock
+    done: dict[int, dict[date, int]] = field(default_factory=dict)
+
+    @property
+    def last_week_start(self) -> date:
+        return self.this_week_start - timedelta(days=7)
+
+
+@dataclass
 class TSheetsData:
     users: dict[int, Employee] = field(default_factory=dict)
     jobcodes: dict[int, dict] = field(default_factory=dict)
     shifts: dict[int, Shift] = field(default_factory=dict)  # keyed by user_id
     locations: dict[int, GeoPoint] = field(default_factory=dict)  # keyed by user_id
     first_in: dict[int, datetime] = field(default_factory=dict)  # earliest clock-in today
+    hours: WeekHours | None = None
+
+    def worked_seconds(
+        self, user_id: int, week_start: date, now: datetime
+    ) -> tuple[int, dict[date, int]]:
+        """Seconds worked in the 7 days from week_start, total and per day.
+
+        Finished timesheets count on their QuickBooks Time date. A shift that is
+        still open counts live, split at midnight, up to now.
+        """
+        week_end = week_start + timedelta(days=7)
+        days: dict[date, int] = {}
+        if self.hours:
+            for day, secs in self.hours.done.get(user_id, {}).items():
+                if week_start <= day < week_end:
+                    days[day] = days.get(day, 0) + secs
+
+        shift = self.shifts.get(user_id)
+        if shift and shift.start:
+            cursor = dt_util.as_local(shift.start)
+            end = dt_util.as_local(now)
+            while cursor < end:
+                midnight = dt_util.start_of_local_day(cursor.date() + timedelta(days=1))
+                piece_end = min(midnight, end)
+                if week_start <= cursor.date() < week_end:
+                    secs = int((piece_end - cursor).total_seconds())
+                    days[cursor.date()] = days.get(cursor.date(), 0) + secs
+                cursor = piece_end
+        return sum(days.values()), days
 
     def _chain(self, jobcode_id: int) -> list[dict]:
         """Jobcodes from top-level (customer) down to this one."""

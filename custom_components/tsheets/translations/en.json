@@ -67,7 +67,8 @@
         "data": {
           "default_jobcode_id": "Job/customer for keypad clock-ins",
           "scan_interval": "Refresh every",
-          "gps_max_age": "Hide GPS locations older than"
+          "gps_max_age": "Hide GPS locations older than",
+          "week_start": "Work week starts on (for the hours sensors)"
         }
       }
     },

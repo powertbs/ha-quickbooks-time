@@ -147,6 +147,18 @@ class TSheetsApi:
         )
         return timesheets
 
+    async def get_week_start(self) -> int | None:
+        """Company 'week start' from effective_settings (QuickBooks Time numbering)."""
+        data = await self._request("GET", "effective_settings")
+        results = _as_dict(data.get("results"))
+        settings = _as_dict(results.get("effective_settings", results))
+        general = _as_dict(settings.get("general"))
+        value = _as_dict(general.get("settings", general)).get("week_start")
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
     async def get_geolocations(self, modified_since: str) -> dict[str, dict]:
         geos, _ = await self._get_all(
             "geolocations", "geolocations", {"modified_since": modified_since}

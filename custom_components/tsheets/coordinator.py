@@ -1,7 +1,7 @@
 """Polls QuickBooks Time for who is on the clock and where."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import logging
 
 from homeassistant.config_entries import ConfigEntry
@@ -15,12 +15,17 @@ from .const import (
     ACTIVE_LOOKBACK_DAYS,
     CONF_GPS_MAX_AGE,
     CONF_SCAN_INTERVAL,
+    CONF_WEEK_START,
     DEFAULT_GPS_MAX_AGE,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_WEEK_START,
     DIRECTORY_REFRESH,
     DOMAIN,
+    FALLBACK_WEEK_START,
+    HOURS_REFRESH,
+    WEEK_START_AUTO,
 )
-from .data import Employee, GeoPoint, Shift, TSheetsData
+from .data import Employee, GeoPoint, Shift, TSheetsData, WeekHours
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,12 +59,33 @@ class TSheetsCoordinator(DataUpdateCoordinator[TSheetsData]):
         self._geo_warned = False
         self._picture_cache: dict[str, str | None] = {}
         self._first_in: dict[int, datetime] = {}
+        self._hours: WeekHours | None = None
+        self._hours_at: datetime | None = None
+        self._company_week_start: int | None = None  # Python weekday, from QuickBooks Time
 
     @property
     def gps_max_age(self) -> timedelta:
         return timedelta(
             minutes=self.config_entry.options.get(CONF_GPS_MAX_AGE, DEFAULT_GPS_MAX_AGE)
         )
+
+    @property
+    def week_start_day(self) -> int:
+        """Python weekday the work week starts on (0 = Monday ... 6 = Sunday)."""
+        chosen = int(self.config_entry.options.get(CONF_WEEK_START, DEFAULT_WEEK_START))
+        if chosen != WEEK_START_AUTO:
+            return chosen
+        if self._company_week_start is not None:
+            return self._company_week_start
+        return FALLBACK_WEEK_START
+
+    def this_week_start(self) -> date:
+        today = dt_util.now().date()
+        return today - timedelta(days=(today.weekday() - self.week_start_day) % 7)
+
+    def invalidate_hours(self) -> None:
+        """Re-read finished timesheets on the next refresh (e.g. right after a punch)."""
+        self._hours_at = None
 
     async def _async_update_data(self) -> TSheetsData:
         now = dt_util.utcnow()
@@ -74,7 +100,7 @@ class TSheetsCoordinator(DataUpdateCoordinator[TSheetsData]):
             raise UpdateFailed(str(err)) from err
 
         await self._refresh_locations(now)
-        await self._refresh_first_in(shifts)
+        await self._refresh_history(now)
 
         return TSheetsData(
             users=dict(self._users),
@@ -82,6 +108,7 @@ class TSheetsCoordinator(DataUpdateCoordinator[TSheetsData]):
             shifts=shifts,
             locations=dict(self._locations),
             first_in=dict(self._first_in),
+            hours=self._hours,
         )
 
     async def _refresh_directory(self) -> None:
@@ -102,6 +129,17 @@ class TSheetsCoordinator(DataUpdateCoordinator[TSheetsData]):
 
         jobcodes = await self.api.get_jobcodes()
         self._jobcodes = {_int(j.get("id")): j for j in jobcodes.values() if _int(j.get("id"))}
+
+        try:
+            tsheets_day = await self.api.get_week_start()
+        except TSheetsAuthError:
+            raise
+        except TSheetsError as err:
+            _LOGGER.debug("Could not read the week start from QuickBooks Time: %s", err)
+        else:
+            if tsheets_day is not None and 0 <= tsheets_day <= 6:
+                # QuickBooks Time counts 0 = Sunday ... 6 = Saturday; Python 0 = Monday.
+                self._company_week_start = (tsheets_day - 1) % 7
 
     async def _real_picture(self, url: str | None) -> str | None:
         """Drop placeholder avatars so the kiosk shows initials instead.
@@ -145,28 +183,54 @@ class TSheetsCoordinator(DataUpdateCoordinator[TSheetsData]):
             )
         return shifts
 
-    async def _refresh_first_in(self, shifts: dict[int, Shift]) -> None:
-        """Earliest clock-in today for everyone on the clock. Failures are non-fatal."""
-        if not shifts:
-            self._first_in = {}
+    async def _refresh_history(self, now: datetime) -> None:
+        """This week's and last week's timesheets: weekly hours + first clock-in today.
+
+        Re-read every HOURS_REFRESH (and right after a punch). Failures are non-fatal;
+        the previous numbers are kept.
+        """
+        week_start = self.this_week_start()
+        if (
+            self._hours_at is not None
+            and self._hours is not None
+            and self._hours.this_week_start == week_start
+            and now - self._hours_at < HOURS_REFRESH
+        ):
             return
-        today = dt_util.now().date()
+        last_week_start = week_start - timedelta(days=7)
         try:
-            timesheets = await self.api.get_timesheets_since(today.isoformat())
+            timesheets = await self.api.get_timesheets_since(last_week_start.isoformat())
         except TSheetsAuthError as err:
             raise ConfigEntryAuthFailed(str(err)) from err
         except TSheetsError as err:
-            _LOGGER.debug("Could not read today's timesheets: %s", err)
+            _LOGGER.warning("Could not read timesheets for the hours sensors: %s", err)
             return
+
+        today = dt_util.now().date()
+        done: dict[int, dict[date, int]] = {}
         first: dict[int, datetime] = {}
         for ts in timesheets.values():
             uid = _int(ts.get("user_id"))
-            start = dt_util.parse_datetime(str(ts.get("start") or ""))
-            if not uid or start is None or dt_util.as_local(start).date() != today:
+            if not uid:
                 continue
-            if uid not in first or start < first[uid]:
-                first[uid] = start
+            start = dt_util.parse_datetime(str(ts.get("start") or ""))
+            if start is not None and dt_util.as_local(start).date() == today:
+                if uid not in first or start < first[uid]:
+                    first[uid] = start
+            if ts.get("on_the_clock"):
+                continue  # open shift: counted live from the active shift
+            day = dt_util.parse_date(str(ts.get("date") or ""))
+            if day is None and start is not None:
+                day = dt_util.as_local(start).date()
+            secs = _int(ts.get("duration"))
+            if day is None or secs <= 0:
+                continue
+            per_day = done.setdefault(uid, {})
+            per_day[day] = per_day.get(day, 0) + secs
+
+        self._hours = WeekHours(this_week_start=week_start, done=done)
         self._first_in = first
+        self._hours_at = now
 
     async def _refresh_locations(self, now: datetime) -> None:
         """GPS points recorded by the QuickBooks Time mobile app. Failures are non-fatal."""
