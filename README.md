@@ -1,4 +1,6 @@
-<img src="custom_components/tsheets/brand/icon.png" alt="QuickBooks Time" width="96" align="right">
+<p align="center">
+  <img src="custom_components/tsheets/brand/icon.png" alt="QuickBooks Time" width="96">
+</p>
 
 # QuickBooks Time (TSheets) for Home Assistant
 
